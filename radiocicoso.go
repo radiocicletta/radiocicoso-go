@@ -3,6 +3,8 @@ package main
 import (
     "github.com/thoj/go-ircevent"
     "strings"
+    "net/http"
+    "encoding/json"
 )
 
 
@@ -29,11 +31,13 @@ func handlerLonghelp(e *irc.Event) (string, string){
 
 func handlerAscolto(e *irc.Event) (string, string){
     var replyto string
+
     if e.Arguments[0] == nickname {
         replyto = e.Nick
     } else {
         replyto = e.Arguments[0]
     }
+
     return "Puoi ascoltare radiocicletta in diversi modi:\n" +
            "• Dal tuo browser, collegandoti al sito " +
            "http://www.radiocicletta.it e usando il player del sito\n" +
@@ -43,6 +47,35 @@ func handlerAscolto(e *irc.Event) (string, string){
            replyto
 }
 
+
+func handlerPodcast(e *irc.Event) (string, string){
+    var replyto string
+    var message = make([]string, 5, 5)
+    var jsondata MixcloudPodcast
+
+    if e.Arguments[0] == nickname {
+        replyto = e.Nick
+    } else {
+        replyto = e.Arguments[0]
+    }
+
+    resp, err := http.Get("http://api.mixcloud.com/radiocicletta/cloudcasts/?limit=5")
+
+    defer resp.Body.Close()
+
+    if err != nil {
+        return "In questo momento non posso elencare i podcast. Prova più tardi :)",
+                replyto
+    }
+
+    decoder := json.NewDecoder(resp.Body)
+    decoder.Decode(&jsondata)
+    for idx, i := range jsondata.Data {
+        message[idx] = " • " + i.Name + "\n" + i.Url + "\n"
+    }
+    return strings.Join(message, "\n"), replyto
+
+}
 //func muori(e *irc.Event) (string, string){
 //}
 
@@ -53,6 +86,7 @@ func main() {
     cmdqueryhandlers := map[string]func(*irc.Event) (string, string){
         "@longhelp": handlerLonghelp,
         "@ascolto": handlerAscolto,
+        "@podcast": handlerPodcast,
     }
 
     ircconn.AddCallback("PRIVMSG", func(event *irc.Event) {
