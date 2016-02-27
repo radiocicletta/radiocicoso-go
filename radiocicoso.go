@@ -5,6 +5,10 @@ import (
     "strings"
     "net/http"
     "encoding/json"
+    "io"
+    "fmt"
+    "strconv"
+    "regexp"
 )
 
 
@@ -76,9 +80,49 @@ func handlerPodcast(e *irc.Event) (string, string){
     return strings.Join(message, "\n"), replyto
 
 }
-//func muori(e *irc.Event) (string, string){
-//}
 
+func handlerCosera(e *irc.Event) (string, string){
+    var reply, replyto string
+
+    if e.Arguments[0] == nickname {
+        replyto = e.Nick
+    } else {
+        replyto = e.Arguments[0]
+    }
+
+    var client *http.Client = &http.Client{}
+    var req, _ = http.NewRequest("GET", "http://stream.radiocicletta.it/stream", nil)
+    req.Header.Add("Icy-MetaData", "1")
+    resp, _ := client.Do(req)
+
+    if header := resp.Header.Get("Icy-Metaint"); header != "" {
+
+        databytes, _ := strconv.ParseInt(header, 10, 32)
+        paddedbytes := databytes + 255
+
+        data := io.LimitReader(resp.Body, paddedbytes) // ensure will read at most #paddedbytes bytes
+        buf := make([]byte, paddedbytes, paddedbytes)
+
+        for read, err := 0, error(nil) ; err == nil; read, err = data.Read(buf[read:]) { // metadata
+        }
+
+        metadata := fmt.Sprintf("%s", buf[databytes:])
+
+        re := regexp.MustCompile("StreamTitle='([^']*)'")
+        titleartist := re.FindStringSubmatch(metadata)
+    
+        if len(titleartist) >= 2 {
+            reply = titleartist[1]
+        } else {
+            reply = "Non saprei. :("
+        }
+    } else { 
+        reply = "Non saprei. :("
+    }
+
+    return reply, 
+           replyto
+}
 
 
 func main() {
@@ -87,6 +131,7 @@ func main() {
         "@longhelp": handlerLonghelp,
         "@ascolto": handlerAscolto,
         "@podcast": handlerPodcast,
+        "@cosera": handlerCosera,
     }
 
     ircconn.AddCallback("PRIVMSG", func(event *irc.Event) {
