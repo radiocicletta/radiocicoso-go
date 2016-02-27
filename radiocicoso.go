@@ -129,6 +129,55 @@ func handlerInonda(e *irc.Event) (string, string){
 }
 
 
+
+func handlerOggi(e *irc.Event) (string, string){
+    var replyto string
+    var jsondata Schedule
+    var days = []string{"do", "lu", "ma", "me", "gi", "ve", "sa"}
+    var now = time.Now()
+
+    if e.Arguments[0] == nickname {
+        replyto = e.Nick
+    } else {
+        replyto = e.Arguments[0]
+    }
+
+    resp, err := http.Get("http://www.radiocicletta.it/programmi.json")
+
+    defer resp.Body.Close()
+
+    if err != nil {
+        return "Ora su due piedi non saprei :(", 
+                replyto
+    }
+
+    decoder := json.NewDecoder(resp.Body)
+    decoder.Decode(&jsondata)
+
+    //hour := now.Hour()
+    //minute := now.Minute()
+    dow := days[now.Weekday()]
+
+    today := make([]string, 24) // like, 24 hours a day
+
+    j := 0
+    for _, i := range jsondata.Programmi {
+        startday := i.Start[0].(string)
+
+        if startday == dow {
+            today[j] = fmt.Sprintf("%02d:%02d %s",
+                int(i.Start[1].(float64)),
+                int(i.Start[1].(float64)), 
+                i.Title,
+            )
+            j = j + 1
+        }
+    }
+    return strings.Join(today, "\n"), replyto
+
+}
+
+
 func handlerCosera(e *irc.Event) (string, string){
     var reply, replyto string
 
@@ -181,6 +230,7 @@ func main() {
         "@podcast": handlerPodcast,
         "@cosera": handlerCosera,
         "@inonda": handlerInonda,
+        "@oggi": handlerOggi,
     }
 
     ircconn.AddCallback("PRIVMSG", func(event *irc.Event) {
