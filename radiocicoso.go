@@ -9,6 +9,7 @@ import (
     "fmt"
     "strconv"
     "regexp"
+    "time"
 )
 
 
@@ -81,6 +82,53 @@ func handlerPodcast(e *irc.Event) (string, string){
 
 }
 
+
+func handlerInonda(e *irc.Event) (string, string){
+    var replyto string
+    var jsondata Schedule
+    var days = []string{"do", "lu", "ma", "me", "gi", "ve", "sa"}
+    var now = time.Now()
+
+    if e.Arguments[0] == nickname {
+        replyto = e.Nick
+    } else {
+        replyto = e.Arguments[0]
+    }
+
+    resp, err := http.Get("http://www.radiocicletta.it/programmi.json")
+
+    defer resp.Body.Close()
+
+    if err != nil {
+        return "Ora su due piedi non saprei :(", 
+                replyto
+    }
+
+    decoder := json.NewDecoder(resp.Body)
+    decoder.Decode(&jsondata)
+
+    hour := now.Hour()
+    minute := now.Minute()
+    dow := days[now.Weekday()]
+
+    for _, i := range jsondata.Programmi {
+        startday := i.Start[0].(string)
+        starthour := int(i.Start[1].(float64))
+        startminute := int(i.Start[2].(float64))
+
+        if startday == dow &&
+            (starthour < hour || 
+                (starthour == hour && (minute > startminute))) &&
+            (starthour > hour || 
+                (starthour == hour && (minute < startminute))) {
+                    return fmt.Sprintf("Ora in onda: %s", i.Title), replyto
+        }
+    }
+    return "Non saprei :(", replyto
+
+}
+
+
 func handlerCosera(e *irc.Event) (string, string){
     var reply, replyto string
 
@@ -132,6 +180,7 @@ func main() {
         "@ascolto": handlerAscolto,
         "@podcast": handlerPodcast,
         "@cosera": handlerCosera,
+        "@inonda": handlerInonda,
     }
 
     ircconn.AddCallback("PRIVMSG", func(event *irc.Event) {
