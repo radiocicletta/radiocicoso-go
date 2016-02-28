@@ -154,8 +154,6 @@ func handlerOggi(e *irc.Event) (string, string){
     decoder := json.NewDecoder(resp.Body)
     decoder.Decode(&jsondata)
 
-    //hour := now.Hour()
-    //minute := now.Minute()
     dow := days[now.Weekday()]
 
     today := make([]string, 24) // like, 24 hours a day
