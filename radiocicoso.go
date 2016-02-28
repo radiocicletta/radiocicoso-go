@@ -10,6 +10,7 @@ import (
     "strconv"
     "regexp"
     "time"
+    "sort"
 )
 
 
@@ -20,6 +21,7 @@ const(
 
 var channels = []string{"#radiocicletta"}
 var goodguys = []string{"leonardo", "Cassapanco", "ineff", "autoscatto", "Biappi"}
+
 
 
 func handlerLonghelp(e *irc.Event) (string, string){
@@ -156,23 +158,28 @@ func handlerOggi(e *irc.Event) (string, string){
 
     dow := days[now.Weekday()]
 
-    today := make([]string, 24) // like, 24 hours a day
+    todaystr := make([]string, 24) // like, 24 hours a day
+    today := make([]Programmi, 24)
 
     j := 0
     for _, i := range jsondata.Programmi {
-        startday := i.Start[0].(string)
 
-        if startday == dow {
-            today[j] = fmt.Sprintf("%02d:%02d %s",
-                int(i.Start[1].(float64)),
-                int(i.Start[1].(float64)), 
-                i.Title,
-            )
+        if startday := i.Start[0].(string); startday == dow {
+            today[j] = i
             j = j + 1
         }
     }
-    return strings.Join(today, "\n"), replyto
-
+    today = today[:j]
+    fmt.Println("Sorting", len(today))
+    sort.Sort(SortedProgrammi(today))
+    for idx, i := range today{
+            todaystr[idx] = fmt.Sprintf("%02d:%02d %s",
+                int(i.Start[1].(float64)),
+                int(i.Start[2].(float64)), 
+                i.Title,
+            )
+    }
+    return strings.Join(todaystr, "\n"), replyto
 }
 
 
