@@ -3,14 +3,6 @@ package main
 import (
     "github.com/thoj/go-ircevent"
     "strings"
-    "net/http"
-    "encoding/json"
-    "io"
-    "fmt"
-    "strconv"
-    "regexp"
-    "time"
-    "sort"
 )
 
 
@@ -57,39 +49,18 @@ func handlerAscolto(e *irc.Event) (string, string){
 
 func handlerPodcast(e *irc.Event) (string, string){
     var replyto string
-    var message = make([]string, 5, 5)
-    var jsondata MixcloudPodcast
-
     if e.Arguments[0] == nickname {
         replyto = e.Nick
     } else {
         replyto = e.Arguments[0]
     }
 
-    resp, err := http.Get("http://api.mixcloud.com/radiocicletta/cloudcasts/?limit=5")
-
-    defer resp.Body.Close()
-
-    if err != nil {
-        return "In questo momento non posso elencare i podcast. Prova più tardi :)",
-                replyto
-    }
-
-    decoder := json.NewDecoder(resp.Body)
-    decoder.Decode(&jsondata)
-    for idx, i := range jsondata.Data {
-        message[idx] = " • " + i.Name + "\n" + i.Url + "\n"
-    }
-    return strings.Join(message, "\n"), replyto
-
+    return GetMixcloudPodcasts(), replyto
 }
 
 
 func handlerInonda(e *irc.Event) (string, string){
     var replyto string
-    var jsondata Schedule
-    var days = []string{"do", "lu", "ma", "me", "gi", "ve", "sa"}
-    var now = time.Now()
 
     if e.Arguments[0] == nickname {
         replyto = e.Nick
@@ -97,46 +68,13 @@ func handlerInonda(e *irc.Event) (string, string){
         replyto = e.Arguments[0]
     }
 
-    resp, err := http.Get("http://www.radiocicletta.it/programmi.json")
-
-    defer resp.Body.Close()
-
-    if err != nil {
-        return "Ora su due piedi non saprei :(", 
-                replyto
-    }
-
-    decoder := json.NewDecoder(resp.Body)
-    decoder.Decode(&jsondata)
-
-    hour := now.Hour()
-    minute := now.Minute()
-    dow := days[now.Weekday()]
-
-    for _, i := range jsondata.Programmi {
-        startday := i.Start[0].(string)
-        starthour := int(i.Start[1].(float64))
-        startminute := int(i.Start[2].(float64))
-
-        if startday == dow &&
-            (starthour < hour || 
-                (starthour == hour && (minute > startminute))) &&
-            (starthour > hour || 
-                (starthour == hour && (minute < startminute))) {
-                    return fmt.Sprintf("Ora in onda: %s", i.Title), replyto
-        }
-    }
-    return "Non saprei :(", replyto
-
+    return GetNowOnair(), replyto
 }
 
 
 
 func handlerOggi(e *irc.Event) (string, string){
     var replyto string
-    var jsondata Schedule
-    var days = []string{"do", "lu", "ma", "me", "gi", "ve", "sa"}
-    var now = time.Now()
 
     if e.Arguments[0] == nickname {
         replyto = e.Nick
@@ -144,47 +82,12 @@ func handlerOggi(e *irc.Event) (string, string){
         replyto = e.Arguments[0]
     }
 
-    resp, err := http.Get("http://www.radiocicletta.it/programmi.json")
-
-    defer resp.Body.Close()
-
-    if err != nil {
-        return "Ora su due piedi non saprei :(", 
-                replyto
-    }
-
-    decoder := json.NewDecoder(resp.Body)
-    decoder.Decode(&jsondata)
-
-    dow := days[now.Weekday()]
-
-    todaystr := make([]string, 24) // like, 24 hours a day
-    today := make([]Programmi, 24)
-
-    j := 0
-    for _, i := range jsondata.Programmi {
-
-        if startday := i.Start[0].(string); startday == dow {
-            today[j] = i
-            j = j + 1
-        }
-    }
-    today = today[:j]
-    fmt.Println("Sorting", len(today))
-    sort.Sort(SortedProgrammi(today))
-    for idx, i := range today{
-            todaystr[idx] = fmt.Sprintf("%02d:%02d %s",
-                int(i.Start[1].(float64)),
-                int(i.Start[2].(float64)), 
-                i.Title,
-            )
-    }
-    return strings.Join(todaystr, "\n"), replyto
+    return GetTodaySchedule(), replyto
 }
 
 
 func handlerCosera(e *irc.Event) (string, string){
-    var reply, replyto string
+    var replyto string
 
     if e.Arguments[0] == nickname {
         replyto = e.Nick
@@ -192,38 +95,7 @@ func handlerCosera(e *irc.Event) (string, string){
         replyto = e.Arguments[0]
     }
 
-    var client *http.Client = &http.Client{}
-    var req, _ = http.NewRequest("GET", "http://stream.radiocicletta.it/stream", nil)
-    req.Header.Add("Icy-MetaData", "1")
-    resp, _ := client.Do(req)
-
-    if header := resp.Header.Get("Icy-Metaint"); header != "" {
-
-        databytes, _ := strconv.ParseInt(header, 10, 32)
-        paddedbytes := databytes + 255
-
-        data := io.LimitReader(resp.Body, paddedbytes) // ensure will read at most #paddedbytes bytes
-        buf := make([]byte, paddedbytes, paddedbytes)
-
-        for read, err := 0, error(nil) ; err == nil; read, err = data.Read(buf[read:]) { // metadata
-        }
-
-        metadata := fmt.Sprintf("%s", buf[databytes:])
-
-        re := regexp.MustCompile("StreamTitle='([^']*)'")
-        titleartist := re.FindStringSubmatch(metadata)
-    
-        if len(titleartist) >= 2 {
-            reply = titleartist[1]
-        } else {
-            reply = "Non saprei. :("
-        }
-    } else { 
-        reply = "Non saprei. :("
-    }
-
-    return reply, 
-           replyto
+    return GetStreamMetadata(), replyto
 }
 
 
