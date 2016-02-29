@@ -57,11 +57,17 @@ func GetNowOnair() string {
         starthour := int(i.Start[1].(float64))
         startminute := int(i.Start[2].(float64))
 
+        endhour := int(i.End[1].(float64))
+        endminute := int(i.End[2].(float64))
+
+        status := i.Stato
+
         if startday == dow &&
+            status == "1" &&
             (starthour < hour ||
                 (starthour == hour && (minute > startminute))) &&
-            (starthour > hour ||
-                (starthour == hour && (minute < startminute))) {
+            (endhour > hour ||
+                (endhour == hour && (minute < endminute))) {
                     return fmt.Sprintf("Ora in onda: %s", i.Title)
         }
     }
@@ -93,13 +99,12 @@ func GetTodaySchedule() string {
     j := 0
     for _, i := range jsondata.Programmi {
 
-        if startday := i.Start[0].(string); startday == dow {
+        if startday, status := i.Start[0].(string), i.Stato; startday == dow  && status == "1"{
             today[j] = i
             j = j + 1
         }
     }
     today = today[:j]
-    fmt.Println("Sorting", len(today))
     sort.Sort(SortedProgrammi(today))
     for idx, i := range today{
             todaystr[idx] = fmt.Sprintf("%02d:%02d %s",
