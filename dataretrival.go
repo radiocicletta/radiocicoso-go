@@ -121,6 +121,8 @@ func GetStreamMetadata() string {
 	req.Header.Add("Icy-MetaData", "1")
 	resp, _ := client.Do(req)
 
+    defer resp.Body.Close()
+
 	if header := resp.Header.Get("Icy-Metaint"); header != "" {
 
 		databytes, _ := strconv.ParseInt(header, 10, 32)
