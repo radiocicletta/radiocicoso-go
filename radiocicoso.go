@@ -3,6 +3,8 @@ package main
 import (
 	"github.com/thoj/go-ircevent"
 	"strings"
+    "regexp"
+    "math/rand"
 )
 
 const (
@@ -12,6 +14,22 @@ const (
 
 var channels = []string{"#radiocicletta"}
 var goodguys = []string{"leonardo", "Cassapanco", "ineff", "autoscatto", "Biappi"}
+
+func handlerHelp(e *irc.Event) (string, string) {
+    var replyto string 
+
+	if e.Arguments[0] == nickname {
+		replyto = e.Nick
+	} else {
+		replyto = e.Arguments[0]
+	}
+	return "Per chiedermi qualcosa, usa un comando" +
+           " preceduto da una chiocciola (ad" +
+           " es. @help). per conoscere la descrizione di tutti i comandi" +
+           " scrivi @longhelp\nComandi disponibili:" +
+           " @help @longhelp @cosera @oggi @inonda @ascolto @podcast",
+		replyto
+}
 
 func handlerLonghelp(e *irc.Event) (string, string) {
 	return "Lista dei comandi disponibili:\n \n" +
@@ -90,9 +108,60 @@ func handlerCosera(e *irc.Event) (string, string) {
 	return GetStreamMetadata(), replyto
 }
 
+func handlerHello(e *irc.Event, a ...string) (string, string){
+	var replyto string
+
+    answers := []string{
+        "o/",
+        "hello",
+        "ciao!",
+        "servus",
+        "ciaociao",
+        "cia'",
+    }
+
+	if e.Arguments[0] == nickname {
+		replyto = e.Nick
+	} else {
+		replyto = e.Arguments[0]
+	}
+
+    return answers[rand.Intn(len(answers))], replyto
+}
+
+
+func handlerNoembed(e *irc.Event, args ...string) (string, string){
+	var replyto string
+
+	if e.Arguments[0] == nickname {
+		replyto = e.Nick
+	} else {
+		replyto = e.Arguments[0]
+	}
+
+    if len(args) > 0{ 
+        uri := args[0]
+        reply := GetNoembedData(uri)
+        return reply, replyto
+    }
+
+    return "", replyto
+
+}
+
+type IrcReaction struct {
+    Pattern *regexp.Regexp
+    Handler func(*irc.Event, ...string) (string, string)
+}
+
+func (i *IrcReaction) Match(pattern string) bool {
+    return i.Pattern.MatchString(pattern)
+}
+
 func main() {
 	ircconn := irc.IRC(nickname, nickname)
 	cmdqueryhandlers := map[string]func(*irc.Event) (string, string){
+        "@help"    : handlerHelp,
 		"@longhelp": handlerLonghelp,
 		"@ascolto":  handlerAscolto,
 		"@podcast":  handlerPodcast,
@@ -100,6 +169,11 @@ func main() {
 		"@inonda":   handlerInonda,
 		"@oggi":     handlerOggi,
 	}
+
+    reactions := []IrcReaction{
+        IrcReaction{regexp.MustCompile("https?://[^ ]+"), handlerNoembed},
+        IrcReaction{regexp.MustCompile("ciao|buon(giorno|di|asera|anotte)|hello"), handlerHello},
+    }
 
 	ircconn.AddCallback("PRIVMSG", func(event *irc.Event) {
 		var tokens []string = strings.Fields(event.Message())
@@ -114,7 +188,19 @@ func main() {
 					}
 				}
 				break
-			}
+			} else {
+                for _, rx := range reactions {
+                    if rx.Match(k) {
+                        msg, replyto = rx.Handler(event, k)
+                        for _, m := range strings.Split(msg, "\n") {
+                            if m != "" {
+                                ircconn.Privmsgf(replyto, m)
+                            }
+                        }
+                        break
+                    }
+                }
+            }
 		}
 	})
 

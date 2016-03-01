@@ -32,6 +32,24 @@ func GetMixcloudPodcasts() string {
 	return strings.Join(message, "\n")
 }
 
+func GetNoembedData(uri string) string {
+	var jsondata NoEmbed
+
+    resp, err := http.Get("http://noembed.com/embed?url=" + uri)
+
+	defer resp.Body.Close()
+
+	if err != nil {
+		return ""
+	}
+
+	decoder := json.NewDecoder(resp.Body)
+	decoder.Decode(&jsondata)
+
+	return  jsondata.Title
+}
+
+
 func GetNowOnair() string {
 	var jsondata Schedule
 	var days = []string{"do", "lu", "ma", "me", "gi", "ve", "sa"}
